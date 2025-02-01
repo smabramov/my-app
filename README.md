@@ -4,7 +4,7 @@
 Создал статичную web-страницу.
 Создал Dockerfile.
 
-[my-app]()
+[my-app](https://github.com/smabramov/my-app.git)
 
 Зашел на DockerHub под своим логином и паролем:
 
