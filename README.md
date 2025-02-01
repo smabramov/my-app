@@ -4,7 +4,6 @@
 Создал статичную web-страницу.
 Создал Dockerfile.
 
-[my-app](https://github.com/smabramov/my-app.git)
 
 Зашел на DockerHub под своим логином и паролем:
 
@@ -96,3 +95,6 @@ serg@debian:~/git/my-app$ docker run -p 80:80 smabramovvv/my-app:1.1.1
 172.17.0.1 - - [01/Feb/2025:07:45:14 +0000] "GET /favicon.ico HTTP/1.1" 404 153 "http://127.0.0.1/" "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0" "-"
 ```
 ![my-app](https://github.com/smabramov/my-app/blob/ce8a16a10ecae487607862d7dbecd9c5f58d87b5/my-app.png)
+
+
+[my-app](https://github.com/smabramov/my-app.git)
