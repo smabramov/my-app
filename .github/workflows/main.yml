@@ -88,18 +88,6 @@ jobs:
           fi
           sed -i "s|image: smabramovvv/my-app:.*|image: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}|" ./deploy/app-deployment.yml
 
-      - name: Create kubeconfig
-        run: |
-          mkdir -p $HOME/.kube/
-
-      - name: Authenticate to Kubernetes cluster
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-        run: |
-          echo "${KUBE_CONFIG}" | base64 --decode > ${HOME}/.kube/config
-          kubectl config view
-          kubectl get nodes
-
       - name: Apply Kubernetes manifests
         run: |
           kubectl apply -f ./deploy/app-deployment.yml
