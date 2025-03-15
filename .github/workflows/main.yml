@@ -1,4 +1,4 @@
-name: Build and Deploy to Kubernetes
+name: CI/CD Pipeline for web-app
 
 on:
   push:
@@ -6,55 +6,108 @@ on:
       - main
     tags:
       - 'v*'
+
 env:
-  IMAGE_NAME: smabramovvv/my-app
+  IMAGE_TAG: smabramovvv/my-app
+  RELEASE_NAME: myapp
   NAMESPACE: my-app
-  DEPLOYMENT_NAME: my-app
 
 jobs:
-  build:
-    runs-on: self-hosted
-
+  build-and-push:
+    name: Build Docker image
+    runs-on: self-hosted  # Используем self-hosted runner
+    outputs:
+      version: ${{ steps.extract-version.outputs.VERSION }}
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Determine Docker tag
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "TAG=latest" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          fi
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
-          
-      - name: Build and push Docker image
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from tag or commit message
+        id: extract-version
+        run: |
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "latest")
+          fi
+          VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
+          echo "Using version: $VERSION"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "::set-output name=VERSION::${VERSION}"
+
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: true 
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.TAG }}
-                 
+          push: true
+          tags: ${{ env.IMAGE_TAG }}:${{ steps.extract-version.outputs.VERSION }}
+
   deploy:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: self-hosted
+    needs: build-and-push
+    name: Deploy to Kubernetes
+    runs-on: self-hosted  # Используем self-hosted runner
+    if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Set tag to env
+
+      - name: List files in the working directory
         run: |
-           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-           fi 
-      - name: Deploy to Kubernetes
-       
+          ls -la
+
+      - name: Set up Kubernetes
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.21.0'
+
+      - name: Extract version from tag or commit message
         run: |
-          kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} ${{ env.DEPLOYMENT_NAME }}=${{ env.IMAGE_NAME }}:${{ env.TAG }} -n ${{ env.NAMESPACE }}
-          kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "latest")
+          fi
+          VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
+          echo "Using version: $VERSION"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Replace image tag in app-deployment.yml
+        run: |
+          if [ ! -f ./deploy/app-deployment.yml ]; then
+            echo "app-deployment.yml not found in the current directory"
+            ls -la ./deploy/
+            exit 1
+          fi
+          sed -i "s|image: smabramovvv/my-app:.*|image: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}|" ./deploy/app-deployment.yml
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubectl apply --dry-run=client -f ./deploy/app-deployment.yml
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f ./deploy/app-deployment.yml
+          kubectl get Deployment -n my-app
+          kubectl get pods -n my-app
+          if kubectl get Deployment myapp -n my-app; then
+            kubectl describe Deployment myapp -n my-app
+          else
+            echo "Deployment myapp not found"
+          fi
+          if kubectl get service myapp-service -n my-app; then
+            kubectl describe service myapp-service -n my-app
+          else
+            echo "Service myapp-service not found"
+          fi
