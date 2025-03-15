@@ -10,7 +10,7 @@ on:
 env:
   IMAGE_TAG: smabramovvv/my-app
   RELEASE_NAME: myapp
-  NAMESPACE:  my-app
+  NAMESPACE: my-app
 
 jobs:
   build-and-push:
@@ -35,11 +35,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
-          fi
-          if [[ -z "$VERSION" ]]; then
-            echo "No version found in the commit message or tag"
-            exit 1
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "latest")
           fi
           VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
           echo "Using version: $VERSION"
@@ -77,11 +73,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
-          fi
-          if [[ -z "$VERSION" ]]; then
-            echo "No version found in the commit message or tag"
-            exit 1
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "latest")
           fi
           VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
           echo "Using version: $VERSION"
@@ -91,6 +83,7 @@ jobs:
         run: |
           if [ ! -f ./deploy/app-deployment.yml ]; then
             echo "app-deployment.yml not found in the current directory"
+            ls -la ./deploy/
             exit 1
           fi
           sed -i "s|image: smabramovvv/my-app:.*|image: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}|" ./deploy/app-deployment.yml
@@ -101,7 +94,7 @@ jobs:
 
       - name: Authenticate to Kubernetes cluster
         env:
-          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           echo "${KUBE_CONFIG}" | base64 --decode > ${HOME}/.kube/config
           kubectl config view
@@ -112,5 +105,13 @@ jobs:
           kubectl apply -f ./deploy/app-deployment.yml
           kubectl get Deployment -n my-app
           kubectl get pods -n my-app
-          kubectl describe Deployment myapp -n my-app
-          kubectl describe service myapp-service -n my-app
+          if kubectl get Deployment myapp -n my-app; then
+            kubectl describe Deployment myapp -n my-app
+          else
+            echo "Deployment myapp not found"
+          fi
+          if kubectl get service myapp-service -n my-app; then
+            kubectl describe service myapp-service -n my-app
+          else
+            echo "Service myapp-service not found"
+          fi
