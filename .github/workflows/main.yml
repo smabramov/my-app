@@ -9,7 +9,7 @@ on:
 
 env:
   IMAGE_TAG: smabramovvv/my-app
-  RELEASE_NAME: myapp
+  RELEASE_NAME: my-app
   NAMESPACE: my-app
 
 jobs:
