@@ -15,7 +15,7 @@ env:
 jobs:
   build-and-push:
     name: Build Docker image
-    runs-on: ubuntu-latest
+    runs-on: self-hosted  # Используем self-hosted runner
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
   deploy:
     needs: build-and-push
     name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
+    runs-on: self-hosted  # Используем self-hosted runner
     if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout code
