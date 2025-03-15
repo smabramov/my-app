@@ -87,13 +87,13 @@ jobs:
           echo "Using version: $VERSION"
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
-      - name: Replace image tag in deployment.yaml
+      - name: Replace image tag in app-deployment.yml
         run: |
-          if [ ! -f ./deploy/deployment.yaml ]; then
-            echo "deployment.yaml not found in the current directory"
+          if [ ! -f ./deploy/app-deployment.yml ]; then
+            echo "app-deployment.yml not found in the current directory"
             exit 1
           fi
-          sed -i "s|image: smabramovvv/my-app:.*|image: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}|" ./deploy/deployment.yaml
+          sed -i "s|image: smabramovvv/my-app:.*|image: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}|" ./deploy/app-deployment.yml
 
       - name: Create kubeconfig
         run: |
@@ -109,8 +109,8 @@ jobs:
 
       - name: Apply Kubernetes manifests
         run: |
-          kubectl apply -f ./deploy/deployment.yaml
+          kubectl apply -f ./deploy/app-deployment.yml
           kubectl get Deployment -n my-app
-          kubectl get pods -n monitoring
+          kubectl get pods -n my-app
           kubectl describe Deployment myapp -n my-app
           kubectl describe service myapp-service -n my-app
